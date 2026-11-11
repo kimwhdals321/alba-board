@@ -44,12 +44,21 @@ function startHour(t) {
   return m ? Number(m[1]) + Number(m[2]) / 60 : null;
 }
 
-function isEvening(text, timeStr) {
-  const s = startHour(timeStr);
+function isEvening(title, timeStr) {
+  const t = timeStr || "";
+  const s = startHour(t);
+  const e = startHour(t.split("~")[1] || "");
+  if (/익일/.test(t)) return true;
   if (s !== null && s >= 16.5) return true;
-  if (/익일/.test(timeStr || "")) return true;
-  return /(야간|저녁|석간|밤샘|night)/i.test(text);
+  if (s !== null && e !== null && e <= s) return true;
+  if (s !== null && !/협의/.test(t)) return false;
+  return /(야간|저녁|석간|밤샘|night)/i.test(title);
 }
+
+function mdDates(s) {
+  return [...(s || "").matchAll(/(\d{1,2})\/(\d{1,2})/g)].map(m => Number(m[1]) * 100 + Number(m[2]));
+}
+const TODAY_MD = mm * 100 + dd;
 
 function mentionsToday(text) {
   return TODAY_TEXT.some(t => text.includes(t));
@@ -84,6 +93,8 @@ async function albamon() {
         if (dist === null && !area.includes("수원")) continue;
         const sameDay = (x.payAddTypes || []).some(p => p.key === "PAY_THE_DAY") || /당일\s*지급/.test(title);
         const time = x.workingTime || "";
+        const wd = mdDates(x.workingDate);
+        if (wd.length && wd.every(d => d < TODAY_MD) && TODAY_MD - Math.max(...wd) < 600) continue;
         items.set(x.recruitNo, {
           id: `am-${x.recruitNo}`,
           src: "알바몬",
@@ -97,8 +108,8 @@ async function albamon() {
           posted: x.postedDate || "",
           closing: x.closingDate || "",
           sameDay,
-          evening: isEvening(text, time),
-          today: mentionsToday(title) || /하루|1일/.test(x.workingPeriod || ""),
+          evening: isEvening(title, time),
+          today: wd.includes(TODAY_MD) || (!wd.length && mentionsToday(title)),
           blocked: BLOCK.test(text),
           url: `https://www.albamon.com/jobs/detail/${x.recruitNo}`,
         });
@@ -155,6 +166,7 @@ async function daangn() {
     if (!list.length) console.error("daangn: 0 parsed", kw);
     for (const x of list) {
       if (x.closed || items.has(x._id)) continue;
+      if (x.dates.length && x.dates.every(d => d < todayIso)) continue;
       const anyTime = !x.ts || (x.ts === "00:00" && x.te === "23:30");
       const time = anyTime ? "시간 협의" : `${x.ts}~${x.te}${x.nego ? " 협의" : ""}`;
       const text = `${x.title} ${x.company}`;
@@ -175,7 +187,7 @@ async function daangn() {
         posted: x.publishedAt,
         closing: "",
         sameDay: /당일\s*지급/.test(text),
-        evening: anyTime || isEvening(text, x.ts) || (startHour(x.te) !== null && startHour(x.te) >= 20),
+        evening: anyTime || isEvening(x.title, `${x.ts}~${x.te}`) || (startHour(x.te) !== null && startHour(x.te) >= 20),
         today: today || mentionsToday(x.title),
         blocked: BLOCK.test(text),
         url: x.publicId ? `https://www.daangn.com/kr/jobs/${x.publicId}/` : `https://jobs.daangn.com/s?regionId=${DG_REGION}`,
