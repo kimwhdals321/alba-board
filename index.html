@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>수원 당일알바</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#16181d;--sub:#5f6672;--line:#e3e6eb;--accent:#ff6a1a;--accent-soft:#fff0e6;--green:#12a150;--green-soft:#e7f7ee;--blue:#2f6fed;--blue-soft:#e9f0fe;--purple:#7a4cf0;--purple-soft:#f1ebfe}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f1114;--card:#191c21;--text:#eef0f3;--sub:#9aa1ad;--line:#2a2e35;--accent:#ff8a47;--accent-soft:#3a2416;--green:#3fcf7f;--green-soft:#15301f;--blue:#6c9bff;--blue-soft:#18233a;--purple:#a585ff;--purple-soft:#251c3d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif}
+header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 16px 10px}
+.wrap{max-width:760px;margin:0 auto}
+h1{font-size:19px;margin:0 0 2px}
+.meta{color:var(--sub);font-size:12.5px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:6px 12px;font-size:13.5px;cursor:pointer;user-select:none}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.search{display:flex;gap:6px;margin-top:10px}
+.search input,.search select{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:8px 10px;font-size:14px}
+.search select{flex:0 0 auto}
+main{padding:12px 16px 40px}
+.count{color:var(--sub);font-size:13px;margin:0 0 8px}
+.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:10px;color:inherit;text-decoration:none}
+.card:hover{border-color:var(--accent)}
+.card.done{opacity:.45}
+.top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.title{font-weight:650;font-size:15.5px;word-break:keep-all;overflow-wrap:anywhere}
+.km{flex:0 0 auto;font-weight:700;color:var(--accent);font-size:14px}
+.km.none{color:var(--sub);font-weight:500;font-size:12px}
+.co{color:var(--sub);font-size:13px;margin-top:2px}
+.info{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin-top:8px;font-size:13.5px}
+.info b{color:var(--sub);font-weight:500}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.tag{font-size:12px;padding:2px 8px;border-radius:6px;font-weight:600}
+.t-src{background:var(--line);color:var(--sub)}
+.t-today{background:var(--accent-soft);color:var(--accent)}
+.t-eve{background:var(--purple-soft);color:var(--purple)}
+.t-pay{background:var(--green-soft);color:var(--green)}
+.actions{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
+.apply{background:var(--accent);color:#fff;border-radius:9px;padding:7px 14px;font-weight:700;font-size:14px}
+.mark{background:none;border:1px solid var(--line);color:var(--sub);border-radius:9px;padding:6px 10px;font-size:13px;cursor:pointer}
+.empty{text-align:center;color:var(--sub);padding:40px 0}
+.more{display:block;width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--text);font-size:14px;cursor:pointer}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1>수원 당일알바</h1>
+  <div class="meta" id="meta">불러오는 중…</div>
+  <div class="row" id="chips">
+    <span class="chip" data-f="today">오늘</span>
+    <span class="chip" data-f="evening">저녁·야간</span>
+    <span class="chip" data-f="sameDay">당일지급</span>
+    <span class="chip" data-f="near">5km 이내</span>
+    <span class="chip" data-f="hideDone">지원한 거 숨기기</span>
+  </div>
+  <div class="search">
+    <input id="q" type="search" placeholder="검색 (예: 물류, 수원역, 행사)">
+    <select id="src"><option value="">전체</option><option>알바몬</option><option>당근</option></select>
+    <select id="sort"><option value="km">가까운순</option><option value="new">최신순</option><option value="pay">급여높은순</option></select>
+  </div>
+</div></header>
+<main class="wrap">
+  <p class="count" id="count"></p>
+  <div id="list"></div>
+  <button class="more" id="more" hidden>더 보기</button>
+</main>
+<script>
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const state = Object.assign({ today: false, evening: true, sameDay: false, near: false, hideDone: false, q: "", src: "", sort: "km" }, store.get("alba.filters", {}));
+const done = new Set(store.get("alba.done", []));
+let data = { items: [] }, shown = 40;
+
+function payValue(p) {
+  const n = Number((p.match(/[\d,]+/) || ["0"])[0].replace(/,/g, ""));
+  if (/시급/.test(p)) return n * 8;
+  if (/주급/.test(p)) return n / 5;
+  if (/월급/.test(p)) return n / 22;
+  if (/연봉/.test(p)) return n / 260;
+  return n;
+}
+function postedValue(x) {
+  if (/^\d{4}-/.test(x.posted)) return Date.parse(x.posted);
+  const m = x.posted.match(/(\d+)\s*(분|시간)전/);
+  if (m) return Date.parse(data.updated) - Number(m[1]) * (m[2] === "분" ? 6e4 : 36e5);
+  const d = x.posted.match(/(\d{1,2})\/(\d{1,2})/);
+  if (d) { const y = new Date(data.updated).getFullYear(); return Date.parse(`${y}-${d[1].padStart(2, "0")}-${d[2].padStart(2, "0")}T00:00:00+09:00`); }
+  return 0;
+}
+function ago(iso) {
+  const m = Math.round((Date.now() - Date.parse(iso)) / 6e4);
+  return m < 1 ? "방금" : m < 60 ? `${m}분 전` : `${Math.floor(m / 60)}시간 ${m % 60}분 전`;
+}
+function postedText(x) {
+  if (/^\d{4}-/.test(x.posted)) return ago(x.posted);
+  return x.posted;
+}
+function esc(s) { return String(s || "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+function filtered() {
+  const q = state.q.trim().toLowerCase();
+  let r = data.items.filter(x =>
+    (!state.today || x.today) &&
+    (!state.evening || x.evening) &&
+    (!state.sameDay || x.sameDay) &&
+    (!state.near || (x.km !== null && x.km <= 5)) &&
+    (!state.hideDone || !done.has(x.id)) &&
+    (!state.src || x.src === state.src) &&
+    (!q || `${x.title} ${x.company} ${x.area} ${x.pay} ${x.time}`.toLowerCase().includes(q)));
+  const kmv = x => x.km === null ? 999 : x.km;
+  if (state.sort === "km") r.sort((a, b) => kmv(a) - kmv(b) || postedValue(b) - postedValue(a));
+  if (state.sort === "new") r.sort((a, b) => postedValue(b) - postedValue(a));
+  if (state.sort === "pay") r.sort((a, b) => payValue(b.pay) - payValue(a.pay));
+  return r;
+}
+
+function render() {
+  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("on", !!state[c.dataset.f]));
+  const r = filtered();
+  document.getElementById("count").textContent = `${r.length}개 공고`;
+  const list = document.getElementById("list");
+  if (!r.length) { list.innerHTML = `<div class="empty">조건에 맞는 공고가 없어요. 필터를 줄여보세요.</div>`; document.getElementById("more").hidden = true; return; }
+  list.innerHTML = r.slice(0, shown).map(x => `
+    <div class="card${done.has(x.id) ? " done" : ""}">
+      <div class="top">
+        <div class="title">${esc(x.title)}</div>
+        ${x.km !== null ? `<div class="km">${x.km}km</div>` : `<div class="km none">${esc(x.area) || "거리 미상"}</div>`}
+      </div>
+      ${x.company ? `<div class="co">${esc(x.company)}</div>` : ""}
+      <div class="info">
+        <b>급여</b><span>${esc(x.pay) || "-"}</span>
+        <b>시간</b><span>${esc(x.time) || "-"}</span>
+        ${x.days ? `<b>일정</b><span>${esc(x.days)}</span>` : ""}
+        ${x.area ? `<b>위치</b><span>${esc(x.area)}</span>` : ""}
+        <b>등록</b><span>${esc(postedText(x))}${x.closing ? ` · 마감 ${esc(x.closing)}` : ""}</span>
+      </div>
+      <div class="tags">
+        <span class="tag t-src">${x.src}</span>
+        ${x.today ? `<span class="tag t-today">오늘</span>` : ""}
+        ${x.evening ? `<span class="tag t-eve">저녁·야간</span>` : ""}
+        ${x.sameDay ? `<span class="tag t-pay">당일지급</span>` : ""}
+      </div>
+      <div class="actions">
+        <button class="mark" data-id="${x.id}">${done.has(x.id) ? "✓ 지원함" : "지원함 표시"}</button>
+        <a class="apply" href="${esc(x.url)}" target="_blank" rel="noopener">공고 보고 지원 →</a>
+      </div>
+    </div>`).join("");
+  document.getElementById("more").hidden = r.length <= shown;
+}
+
+function save() { store.set("alba.filters", state); }
+
+document.getElementById("chips").addEventListener("click", e => {
+  const c = e.target.closest(".chip"); if (!c) return;
+  state[c.dataset.f] = !state[c.dataset.f]; shown = 40; save(); render();
+});
+document.getElementById("list").addEventListener("click", e => {
+  const b = e.target.closest(".mark"); if (!b) return;
+  const id = b.dataset.id; done.has(id) ? done.delete(id) : done.add(id);
+  store.set("alba.done", [...done]); render();
+});
+const q = document.getElementById("q"), src = document.getElementById("src"), sort = document.getElementById("sort");
+q.value = state.q; src.value = state.src; sort.value = state.sort;
+q.addEventListener("input", () => { state.q = q.value; shown = 40; save(); render(); });
+src.addEventListener("change", () => { state.src = src.value; shown = 40; save(); render(); });
+sort.addEventListener("change", () => { state.sort = sort.value; save(); render(); });
+document.getElementById("more").addEventListener("click", () => { shown += 40; render(); });
+
+async function load() {
+  try {
+    const r = await fetch(`data.json?t=${Date.now()}`, { cache: "no-store" });
+    data = await r.json();
+    document.getElementById("meta").textContent = `업데이트 ${ago(data.updated)} · 알바몬 ${data.counts.albamon} · 당근 ${data.counts.daangn} · 거리는 팔달문 기준`;
+    render();
+  } catch {
+    document.getElementById("meta").textContent = "데이터를 불러오지 못했어요. 잠시 후 새로고침 해주세요.";
+  }
+}
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>
